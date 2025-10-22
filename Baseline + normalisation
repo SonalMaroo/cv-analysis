@@ -1,0 +1,62 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+# ---------- Scatter (baseline optional + normalization) ----------
+filename = 'Dev11.xlsx'
+data = pd.read_excel(filename, header=None).to_numpy()
+
+# Parameters
+nPairsToRead = 11
+normalizeBy = 'at350'       # 'max' or 'at350'
+Emin, Emax = 0, 350         # mV window
+doBaseline = False          # set False to skip baseline correction
+
+numRows, numCols = data.shape
+maxPairs = numCols // 2
+if nPairsToRead > maxPairs:
+    raise ValueError(f"Requested {nPairsToRead} pairs, but only {maxPairs} available.")
+
+plt.figure()
+legtxt = []
+
+for i in range(nPairsToRead):
+    x = data[:, 2 * i]
+    y = data[:, 2 * i + 1]
+
+    # Legend text from row-1 current
+    I_row1 = data[0, 2 * i + 1]
+    legtxt.append(f"I(row1)={I_row1:.3g}")
+
+    # Restrict to 0–350 mV
+    mask = (x >= Emin) & (x <= Emax)
+    x = x[mask]
+    y = y[mask]
+
+    # Baseline correction (optional)
+    if doBaseline:
+        baseline_mask = np.abs(x - 100) < 5
+        baseline = np.nanmean(y[baseline_mask])
+    else:
+        baseline = 0
+    y_corrected = y - baseline
+
+    # Normalization
+    if normalizeBy == 'max':
+        norm_factor = np.nanmax(y_corrected)
+    elif normalizeBy == 'at350':
+        idx_ref = np.argmin(np.abs(x - 350))
+        norm_factor = y_corrected[idx_ref]
+    else:
+        raise ValueError(f"Unknown normalization method: {normalizeBy}")
+
+    y_norm = y_corrected / norm_factor
+    plt.scatter(x, y_norm, label=legtxt[-1])
+
+plt.xlabel('E (mV)')
+plt.ylabel('Normalized I')
+plt.title(f'XY Scatter (0–350 mV, {nPairsToRead} Pairs, Norm: {normalizeBy}, Baseline={doBaseline})')
+plt.legend(loc='best', bbox_to_anchor=(1.05, 1))
+plt.grid(True)
+plt.tight_layout()
+plt.show()
