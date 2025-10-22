@@ -3,12 +3,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # --- Parameters ---
-filename = 'data.xlsx'
+filename = 'Data.xlsx'
 sheet_name = 'Sheet1'
 baseline_potential = 100  # mV
 
 # --- Load data ---
 data = pd.read_excel(filename, sheet_name=sheet_name)
+
+# Extract legend labels from first row
+legend_labels = data.iloc[0, :].astype(str).values
+data = data.iloc[1:, :]  # Remove first row from actual data
 
 # Determine number of XY pairs
 num_cols = data.shape[1]
@@ -20,10 +24,10 @@ plt.figure(figsize=(6,4))
 corrected_data = pd.DataFrame()
 
 for i in range(num_pairs):
-    V = data.iloc[:, 2*i].values   # X column
-    I = data.iloc[:, 2*i+1].values # Y column
+    V = data.iloc[:, 2*i].astype(float).values   # X column
+    I = data.iloc[:, 2*i+1].astype(float).values # Y column
 
-    # Baseline correction (I = 0 at baseline potential)
+    # Baseline correction
     idx_baseline = np.argmin(np.abs(V - baseline_potential))
     I_baseline = I[idx_baseline]
     I_corrected = I - I_baseline
@@ -31,14 +35,14 @@ for i in range(num_pairs):
     # Normalization
     I_normalized = I_corrected / np.max(np.abs(I_corrected))
 
-    # Plot
-    plt.plot(V, I_normalized, label=f'Pair {i+1}')
+    # Plot with legend from first row
+    plt.plot(V, I_normalized, label=legend_labels[2*i+1])
 
     # Save corrected data
     corrected_data[f'V{i+1}'] = V
     corrected_data[f'I_norm{i+1}'] = I_normalized
 
-# Plot baseline reference lines
+# Baseline reference lines
 plt.axhline(0, color='gray', linestyle='--', label='I = 0 at baseline')
 plt.axvline(baseline_potential, color='red', linestyle='--', label=f'Baseline potential = {baseline_potential} mV')
 
@@ -49,5 +53,5 @@ plt.grid(True)
 plt.legend()
 plt.show()
 
-# Save all corrected curves
+# Save corrected data
 corrected_data.to_excel('data_corrected.xlsx', index=False)
