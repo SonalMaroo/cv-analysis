@@ -1,0 +1,67 @@
+import pandas as pd
+import numpy as np
+
+# === Parameters ===
+filename = 'Binning.xlsx'  # Excel file name
+nPairsToRead = 12  #specify pairs of data
+binWidth = 0.005  
+separateBin = 0  # 1 for separate binning, 0 for all together. useful when you want to bin forward and backward scans separately
+
+# === Read Data ===
+rawData = pd.read_excel(filename, header=None).values
+nRows = rawData.shape[0]
+data = rawData[:nRows, :2 * nPairsToRead]
+
+# === Preallocate ===
+binnedData = [[] for _ in range(2 * nPairsToRead)]
+headers = ['' for _ in range(2 * nPairsToRead)]
+maxLength = 0
+
+# Define binXY function
+def binXY(x, y, binWidth):
+    edges = np.arange(np.min(x), np.max(x) + binWidth, binWidth)
+    bx = np.empty(len(edges) - 1)
+    by = np.empty(len(edges) - 1)
+    for i in range(len(edges) - 1):
+        inBin = (x >= edges[i]) & (x < edges[i + 1])
+        if np.any(inBin):
+            bx[i] = np.mean(x[inBin])
+            by[i] = np.mean(y[inBin])
+        else:
+            bx[i] = np.nan
+            by[i] = np.nan
+    valid = (~np.isnan(bx)) & (~np.isnan(by))
+    return bx[valid], by[valid]
+
+# === Bin Each Pair ===
+for i in range(nPairsToRead):
+    x = data[:, 2 * i]
+    y = data[:, 2 * i + 1]
+    valid_mask = (~np.isnan(x)) & (~np.isnan(y))
+    x = x[valid_mask]
+    y = y[valid_mask]
+
+    if separateBin == 1:
+        dx = np.diff(x)
+        direction = np.concatenate(([True], dx > 0))
+        x = x[direction]
+        y = y[direction]
+
+    bx, by = binXY(x, y, binWidth)
+    binnedData[2 * i] = bx
+    binnedData[2 * i + 1] = by
+    headers[2 * i] = f'X_binned_{i + 1}'
+    headers[2 * i + 1] = f'Y_binned_{i + 1}'
+    maxLength = max(maxLength, len(bx))
+
+# === Create Output DataFrame ===
+output = np.full((maxLength, 2 * nPairsToRead), np.nan)
+for i in range(2 * nPairsToRead):
+    col = binnedData[i]
+    output[:len(col), i] = col
+
+df = pd.DataFrame(output, columns=headers)
+
+# === Write to Excel ===
+with pd.ExcelWriter(filename, engine='openpyxl', mode='a') as writer:
+    df.to_excel(writer, sheet_name='BinnedData', index=False)
